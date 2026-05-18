@@ -1,0 +1,19 @@
+{
+  "ts": "2026-05-15T00:32:30.813216",
+  "symbol": "BTC/USD",
+  "equity": 99995.19,
+  "day_pct": 0.0021,
+  "day_usd": 2.1,
+  "total_usd": -2.95,
+  "trades_today": 0,
+  "signal_action": "hold",
+  "signal_reason": "Meta diaria alcanzada (2.10 USD)",
+  "position_qty": 0.00620698,
+  "last_order_side": "none",
+  "last_order_id": "",
+  "message": "Pausa por riesgo: Meta diaria alcanzada (2.10 USD)",
+  "is_profit": false,
+  "entry_price": 78717.9,
+  "sl_price": 76356.36,
+  "tp_price": 83440.97
+}
