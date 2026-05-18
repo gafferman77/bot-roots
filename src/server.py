@@ -1,46 +1,50 @@
 """
 Mini servidor HTTP que expone los datos del bot via API REST.
-Corre en un thread separado junto al bot principal.
+El status se mantiene en memoria para compatibilidad con Render free tier.
 """
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 
-LOGS_DIR = Path(__file__).resolve().parent / "logs"
+# Estado compartido en memoria
+_status: dict = {}
+_trades: list = []
+_lock = threading.Lock()
+
+
+def update_status(data: dict) -> None:
+    with _lock:
+        _status.clear()
+        _status.update(data)
+
+
+def append_trade(trade: dict) -> None:
+    with _lock:
+        _trades.append(trade)
+
+
+def get_status() -> dict:
+    with _lock:
+        return dict(_status)
+
+
+def get_trades() -> list:
+    with _lock:
+        return list(_trades)
 
 
 class BotHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/status":
-            self._serve_file(LOGS_DIR / "status.json")
+            body = json.dumps(get_status()).encode()
+            self._respond(200, body, "application/json")
         elif self.path == "/trades":
-            self._serve_trades()
+            body = json.dumps(get_trades()).encode()
+            self._respond(200, body, "application/json")
         elif self.path == "/health":
             self._respond(200, b"OK", "text/plain")
         else:
             self._respond(404, b"Not found", "text/plain")
-
-    def _serve_file(self, path: Path):
-        if not path.exists():
-            self._respond(404, b"{}", "application/json")
-            return
-        data = path.read_bytes()
-        self._respond(200, data, "application/json")
-
-    def _serve_trades(self):
-        path = LOGS_DIR / "trades.jsonl"
-        if not path.exists():
-            self._respond(200, b"[]", "application/json")
-            return
-        lines = path.read_text(encoding="utf-8").strip().splitlines()
-        trades = []
-        for line in lines:
-            try:
-                trades.append(json.loads(line))
-            except Exception:
-                pass
-        self._respond(200, json.dumps(trades).encode(), "application/json")
 
     def _respond(self, code: int, body: bytes, content_type: str):
         self.send_response(code)
@@ -51,7 +55,7 @@ class BotHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format, *args):
-        pass  # silenciar logs HTTP en consola
+        pass
 
 
 def start_server(port: int = 8080):

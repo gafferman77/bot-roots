@@ -7,6 +7,7 @@ from .alpaca_client import AlpacaGateway
 from .config import Settings
 from .risk import RiskLimits, can_trade_today, compute_order_notional, pct_change
 from .strategy import compute_signal
+from . import server as _srv
 
 
 class TraderBot:
@@ -24,18 +25,12 @@ class TraderBot:
         self.last_order_side = "none"
         self.last_order_id = ""
 
-        # ── Tracking de posición abierta para SL/TP ──
-        # Se persiste en disco para sobrevivir reinicios del bot
         self.position_file = self.logs_dir / "position.json"
         self.entry_price: float | None = None
         self.entry_qty: float = 0.0
         self._load_position()
 
-    # ────────────────────────────────────────────
-    # PERSISTENCIA DE POSICIÓN
-    # ────────────────────────────────────────────
     def _load_position(self) -> None:
-        """Carga la posición abierta desde disco al reiniciar."""
         if self.position_file.exists():
             try:
                 data = json.loads(self.position_file.read_text(encoding="utf-8"))
@@ -51,20 +46,23 @@ class TraderBot:
                 self.entry_qty   = 0.0
 
     def _save_position(self) -> None:
-        self.position_file.write_text(
-            json.dumps({"entry_price": self.entry_price, "entry_qty": self.entry_qty}),
-            encoding="utf-8"
-        )
+        try:
+            self.position_file.write_text(
+                json.dumps({"entry_price": self.entry_price, "entry_qty": self.entry_qty}),
+                encoding="utf-8"
+            )
+        except Exception:
+            pass
 
     def _clear_position(self) -> None:
         self.entry_price = None
         self.entry_qty   = 0.0
-        if self.position_file.exists():
-            self.position_file.unlink()
+        try:
+            if self.position_file.exists():
+                self.position_file.unlink()
+        except Exception:
+            pass
 
-    # ────────────────────────────────────────────
-    # HELPERS
-    # ────────────────────────────────────────────
     def _roll_day_if_needed(self, equity: float) -> None:
         now_key = datetime.utcnow().strftime("%Y-%m-%d")
         if now_key != self.day_key:
@@ -74,8 +72,14 @@ class TraderBot:
             logging.info("Nuevo dia de trading UTC. Equity inicial: %.2f", equity)
 
     def _append_trade_log(self, payload: dict) -> None:
-        with self.trades_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=True) + "\n")
+        # Guardar en memoria para el servidor HTTP
+        _srv.append_trade(payload)
+        # Intentar guardar en disco también (puede fallar en Render free)
+        try:
+            with self.trades_file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(payload, ensure_ascii=True) + "\n")
+        except Exception:
+            pass
 
     def _write_status(
         self,
@@ -107,31 +111,26 @@ class TraderBot:
             "last_order_id":    self.last_order_id,
             "message":          message,
             "is_profit":        total_usd >= 0,
-            # Nuevos campos para el panel
             "entry_price":      round(entry_price, 2) if entry_price else None,
             "sl_price":         round(sl_price, 2)    if sl_price    else None,
             "tp_price":         round(tp_price, 2)    if tp_price    else None,
         }
-        self.status_file.write_text(
-            json.dumps(status, ensure_ascii=True, indent=2), encoding="utf-8"
-        )
+        # Actualizar memoria compartida con el servidor HTTP
+        _srv.update_status(status)
+        # Intentar guardar en disco también
+        try:
+            self.status_file.write_text(
+                json.dumps(status, ensure_ascii=True, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
 
-    # ────────────────────────────────────────────
-    # FILTRO HORARIO  (Argentina UTC-3)
-    # ────────────────────────────────────────────
     def _is_trading_hour(self) -> tuple[bool, str]:
-        """
-        Evita operar entre las 2:00 y 7:00 hora Argentina (05:00-10:00 UTC).
-        En esas horas el volumen de BTC es bajo y los spreads son más anchos.
-        """
         hora_arg = (datetime.now(timezone.utc).hour - 3) % 24
         if 2 <= hora_arg < 7:
             return False, f"Fuera de horario operativo (hora AR: {hora_arg:02d}:xx)"
         return True, "OK"
 
-    # ────────────────────────────────────────────
-    # STOP-LOSS / TAKE-PROFIT
-    # ────────────────────────────────────────────
     def _check_sl_tp(
         self,
         position_qty: float,
@@ -141,15 +140,11 @@ class TraderBot:
         day_usd: float,
         total_usd: float,
     ) -> bool:
-        """
-        Revisa si el precio actual tocó el SL o TP.
-        Retorna True si ejecutó una salida de emergencia.
-        """
         if not self.entry_price or position_qty <= 0:
             return False
 
-        sl_pct = self.settings.stop_loss_pct   / 100.0   # ej: 0.02
-        tp_pct = self.settings.take_profit_pct / 100.0   # ej: 0.04
+        sl_pct = self.settings.stop_loss_pct   / 100.0
+        tp_pct = self.settings.take_profit_pct / 100.0
 
         sl_price = self.entry_price * (1 - sl_pct)
         tp_price = self.entry_price * (1 + tp_pct)
@@ -195,9 +190,6 @@ class TraderBot:
         )
         return True
 
-    # ────────────────────────────────────────────
-    # CICLO PRINCIPAL
-    # ────────────────────────────────────────────
     def run_once(self) -> None:
         equity = self.gateway.account_equity()
         if self.challenge_start_equity is None:
@@ -221,7 +213,6 @@ class TraderBot:
 
         position_qty = self.gateway.open_position_qty(self.settings.symbol)
 
-        # ── 1. Obtener precio actual para SL/TP ──
         bars = self.gateway.get_crypto_bars(
             symbol=self.settings.symbol,
             timeframe_minutes=self.settings.timeframe_minutes,
@@ -229,7 +220,6 @@ class TraderBot:
         )
         current_price = float(bars["close"].iloc[-1]) if not bars.empty else 0.0
 
-        # ── 2. Chequear SL/TP ANTES de cualquier otra cosa ──
         if position_qty > 0 and current_price > 0:
             sl_price = self.entry_price * (1 - self.settings.stop_loss_pct / 100) if self.entry_price else None
             tp_price = self.entry_price * (1 + self.settings.take_profit_pct / 100) if self.entry_price else None
@@ -240,7 +230,6 @@ class TraderBot:
             sl_price = None
             tp_price = None
 
-        # ── 3. Filtro horario ──
         can_hour, hour_reason = self._is_trading_hour()
         if not can_hour:
             logging.info("Filtro horario: %s", hour_reason)
@@ -253,7 +242,6 @@ class TraderBot:
             )
             return
 
-        # ── 4. Frenos de riesgo diario ──
         can_trade, reason = can_trade_today(self.trades_today, day_pct, day_usd, total_usd, limits)
         if not can_trade:
             logging.warning("Sin operacion: %s", reason)
@@ -266,7 +254,6 @@ class TraderBot:
             )
             return
 
-        # ── 5. Señal de estrategia ──
         signal = compute_signal(
             bars=bars,
             ema_fast=self.settings.ema_fast,
@@ -288,7 +275,6 @@ class TraderBot:
             )
             return
 
-        # ── 6. Ejecutar orden ──
         order_id = ""
         side     = ""
 
@@ -296,7 +282,6 @@ class TraderBot:
             notional = compute_order_notional(equity, self.settings.risk_per_trade_pct)
             order_id = self.gateway.submit_market_buy_notional(self.settings.symbol, notional)
             side     = "buy"
-            # Guardar precio de entrada para SL/TP
             self.entry_price = current_price
             self.entry_qty   = notional / current_price if current_price > 0 else 0
             self._save_position()
