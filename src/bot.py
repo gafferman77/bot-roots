@@ -31,6 +31,8 @@ class TraderBot:
         self._load_position()
 
     def _load_position(self) -> None:
+        import os
+        # Primero intentar desde disco
         if self.position_file.exists():
             try:
                 data = json.loads(self.position_file.read_text(encoding="utf-8"))
@@ -41,9 +43,25 @@ class TraderBot:
                         "Posicion cargada desde disco: precio=%.2f qty=%.6f",
                         self.entry_price, self.entry_qty
                     )
+                    return
             except Exception:
-                self.entry_price = None
-                self.entry_qty   = 0.0
+                pass
+        # Si no hay disco, leer desde variables de entorno (Render)
+        env_price = os.getenv("ENTRY_PRICE", "").strip()
+        env_qty   = os.getenv("ENTRY_QTY", "").strip()
+        if env_price and env_qty:
+            try:
+                self.entry_price = float(env_price)
+                self.entry_qty   = float(env_qty)
+                logging.info(
+                    "Posicion cargada desde ENV: precio=%.2f qty=%.6f",
+                    self.entry_price, self.entry_qty
+                )
+                return
+            except Exception:
+                pass
+        self.entry_price = None
+        self.entry_qty   = 0.0
 
     def _save_position(self) -> None:
         try:

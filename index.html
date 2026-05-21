@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Roots — Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e0e;
+    --surface: #161616;
+    --border: #242424;
+    --text: #e8e4dc;
+    --muted: #6b6660;
+    --accent: #c8b99a;
+    --green: #4caf7d;
+    --red: #e05c5c;
+    --amber: #d4a853;
+    --blue: #5b9bd5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 0 0 3rem;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    justify-content: space-between;
+  }
+  .logo {
+    font-family: 'EB Garamond', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .logo span {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 1rem;
+  }
+  .pulse {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  .dot.offline { background: var(--red); animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  main { padding: 2rem; max-width: 900px; margin: 0 auto; }
+
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+  .metric {
+    background: var(--surface);
+    padding: 1.25rem 1.5rem;
+  }
+  .metric .label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+  .metric .value {
+    font-size: 1.6rem;
+    font-family: 'EB Garamond', serif;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+  }
+  .metric .value.green { color: var(--green); }
+  .metric .value.red { color: var(--red); }
+  .metric .value.amber { color: var(--amber); }
+  .metric .sub {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .section {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+  .section-header {
+    background: var(--surface);
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-body { padding: 1.5rem; }
+
+  .pos-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .pos-row:last-child { border-bottom: none; }
+  .pos-row .k { color: var(--muted); }
+  .pos-row .v { font-weight: 500; }
+
+  .signal-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 2px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .signal-badge.hold { background: rgba(107,102,96,0.2); color: var(--muted); }
+  .signal-badge.buy { background: rgba(76,175,125,0.15); color: var(--green); }
+  .signal-badge.sell { background: rgba(224,92,92,0.15); color: var(--red); }
+
+  .progress-wrap {
+    margin: 1rem 0 0;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  td {
+    padding: 0.6rem 0.75rem;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.green { color: var(--green); }
+  td.red { color: var(--red); }
+  td.muted { color: var(--muted); }
+
+  .update-bar {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+
+  .error-msg {
+    text-align: center;
+    padding: 3rem;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 1rem; }
+    header { padding: 1rem; }
+    .metric .value { font-size: 1.3rem; }
+    th, td { padding: 0.5rem; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Roots <span>/ bot trading</span></div>
+  </div>
+  <div class="pulse">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">conectando...</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="grid-4" id="metricsGrid">
+    <div class="metric"><div class="label">Equity</div><div class="value" id="equity">—</div></div>
+    <div class="metric"><div class="label">P&L Total</div><div class="value" id="totalUsd">—</div></div>
+    <div class="metric"><div class="label">P&L Hoy</div><div class="value" id="dayUsd">—</div></div>
+    <div class="metric"><div class="label">Señal</div><div class="value" id="signal">—</div><div class="sub" id="trades">—</div></div>
+  </div>
+
+  <div class="section" id="positionSection" style="display:none">
+    <div class="section-header">Posición abierta — BTC/USD</div>
+    <div class="section-body">
+      <div class="pos-row"><span class="k">Entrada</span><span class="v" id="entryPrice">—</span></div>
+      <div class="pos-row"><span class="k">Stop Loss</span><span class="v red" id="slPrice">—</span></div>
+      <div class="pos-row"><span class="k">Take Profit</span><span class="v green" id="tpPrice">—</span></div>
+      <div class="pos-row"><span class="k">Cantidad</span><span class="v" id="posQty">—</span></div>
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>SL</span>
+          <span id="progressLabel">— % hacia TP</span>
+          <span>TP</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Última señal</div>
+    <div class="section-body">
+      <div style="color:var(--muted);font-size:12px;line-height:1.7" id="signalReason">—</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Historial de trades</div>
+    <div class="section-body" style="padding:0;overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>P&L</th>
+            <th>Motivo</th>
+          </tr>
+        </thead>
+        <tbody id="tradesBody">
+          <tr><td colspan="4" class="muted" style="text-align:center;padding:2rem">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="update-bar" id="updateBar">Actualizando cada 60 segundos</div>
+</main>
+
+<script>
+  // ⚠️ Reemplazá esta URL con la URL de tu servicio en Railway
+  const API = 'https://bot-roots.onrender.com';
+
+  function fmt(n, prefix='') {
+    if (n === null || n === undefined) return '—';
+    const v = parseFloat(n);
+    const sign = v >= 0 ? '+' : '';
+    return prefix + sign + v.toFixed(2);
+  }
+  function fmtUsd(n) {
+    if (n === null || n === undefined) return '—';
+    const v = parseFloat(n);
+    return (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+  }
+  function colorClass(n) {
+    if (n === null || n === undefined) return '';
+    return parseFloat(n) >= 0 ? 'green' : 'red';
+  }
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit'})
+      + ' ' + d.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+  }
+
+  async function loadStatus() {
+    try {
+      const res = await fetch(API + '/status');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const d = await res.json();
+
+      document.getElementById('statusDot').className = 'dot';
+      document.getElementById('statusText').textContent = 'en línea';
+
+      document.getElementById('equity').textContent = '$' + parseFloat(d.equity).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+      const totalEl = document.getElementById('totalUsd');
+      totalEl.textContent = fmtUsd(d.total_usd);
+      totalEl.className = 'value ' + colorClass(d.total_usd);
+
+      const dayEl = document.getElementById('dayUsd');
+      dayEl.textContent = fmtUsd(d.day_usd);
+      dayEl.className = 'value ' + colorClass(d.day_usd);
+
+      const sigEl = document.getElementById('signal');
+      sigEl.innerHTML = '<span class="signal-badge ' + d.signal_action + '">' + d.signal_action.toUpperCase() + '</span>';
+      sigEl.className = 'value';
+      document.getElementById('trades').textContent = d.trades_today + ' trades hoy';
+      document.getElementById('signalReason').textContent = d.signal_reason || '—';
+
+      if (d.entry_price && d.position_qty > 0) {
+        document.getElementById('positionSection').style.display = 'block';
+        document.getElementById('entryPrice').textContent = '$' + parseFloat(d.entry_price).toLocaleString();
+        document.getElementById('slPrice').textContent = '$' + parseFloat(d.sl_price).toLocaleString();
+        document.getElementById('tpPrice').textContent = '$' + parseFloat(d.tp_price).toLocaleString();
+        document.getElementById('posQty').textContent = parseFloat(d.position_qty).toFixed(6) + ' BTC';
+
+        const range = d.tp_price - d.sl_price;
+        const current = d.entry_price - d.sl_price;
+        const pct = Math.min(100, Math.max(0, (current / range) * 100));
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressLabel').textContent = Math.round(pct) + '% hacia TP';
+      } else {
+        document.getElementById('positionSection').style.display = 'none';
+      }
+
+      const now = new Date().toLocaleTimeString('es-AR');
+      document.getElementById('updateBar').textContent = 'Última actualización: ' + now + ' — próxima en 60s';
+    } catch(e) {
+      document.getElementById('statusDot').className = 'dot offline';
+      document.getElementById('statusText').textContent = 'sin conexión';
+      document.getElementById('updateBar').textContent = 'Error de conexión. Reintentando...';
+    }
+  }
+
+  async function loadTrades() {
+    try {
+      const res = await fetch(API + '/trades');
+      if (!res.ok) throw new Error();
+      const trades = await res.json();
+      const body = document.getElementById('tradesBody');
+
+      if (!trades.length) {
+        body.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:2rem">Sin trades registrados</td></tr>';
+        return;
+      }
+
+      const rows = [...trades].reverse().slice(0, 30).map(t => {
+        const side = t.side === 'buy'
+          ? '<span style="color:var(--green)">BUY</span>'
+          : '<span style="color:var(--red)">SELL</span>';
+        const pnl = t.total_usd !== undefined && t.total_usd !== null
+          ? '<td class="' + colorClass(t.total_usd) + '">' + fmtUsd(t.total_usd) + '</td>'
+          : '<td class="muted">—</td>';
+        const reason = (t.reason || '').slice(0, 50) + ((t.reason || '').length > 50 ? '…' : '');
+        return '<tr><td class="muted">' + fmtDate(t.ts) + '</td><td>' + side + '</td>' + pnl + '<td class="muted" style="font-size:11px">' + reason + '</td></tr>';
+      }).join('');
+      body.innerHTML = rows;
+    } catch(e) {
+      document.getElementById('tradesBody').innerHTML =
+        '<tr><td colspan="4" class="muted" style="text-align:center;padding:2rem">Error al cargar trades</td></tr>';
+    }
+  }
+
+  function refresh() { loadStatus(); loadTrades(); }
+  refresh();
+  setInterval(refresh, 60000);
+</script>
+</body>
+</html>
