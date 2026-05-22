@@ -1,12 +1,8 @@
-"""
-Mini servidor HTTP que expone los datos del bot via API REST.
-El status se mantiene en memoria para compatibilidad con Render free tier.
-"""
 import json
 import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# Estado compartido en memoria
 _status: dict = {}
 _trades: list = []
 _lock = threading.Lock()
@@ -43,6 +39,12 @@ class BotHandler(BaseHTTPRequestHandler):
             self._respond(200, body, "application/json")
         elif self.path == "/health":
             self._respond(200, b"OK", "text/plain")
+        elif self.path == "/ip":
+            try:
+                ip = urllib.request.urlopen("https://ifconfig.me/ip", timeout=5).read()
+                self._respond(200, ip, "text/plain")
+            except Exception:
+                self._respond(200, b"unknown", "text/plain")
         else:
             self._respond(404, b"Not found", "text/plain")
 
